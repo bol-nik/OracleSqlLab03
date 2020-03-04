@@ -1,0 +1,148 @@
+create table dept(
+d_no number(4) not null primary key,
+d_name varchar2(25) not null,
+location varchar2(200) not null) 
+
+create table Emp(
+e_no number(4) not null primary key,
+e_name varchar2(100) not null,
+date_hire date not null,
+salary number(10,5) not null,
+address varchar2(200) not null,
+d_no number(4) not null,
+constraint e_fk_d_no foreign key(d_no) references dept(d_no))
+====================================================
+
+а) создание нового отдела;
+create or replace procedure new_dept(p_d_name in dept.d_name%type,p_location in dept.location%type) is
+v_d_no dept.d_no%type;
+e_dept exception;
+begin 
+select count(*) into v_d_no from dept
+where d_name=p_d_name;
+if v_d_no>0 then raise e_dept;end if;
+
+select count(*) into v_d_no from dept;
+if v_d_no>0 then select max(d_no)+1 into v_d_no from dept;
+else v_d_no:=1;end if;
+
+insert into dept(d_no,d_name,location) values(v_d_no,p_d_name,p_location);
+exception
+when e_dept then raise_application_error(-20005,'Dept Exist');
+end new_dept;
+=====================================================
+begin new_dept('Syktyvkar TransNeft','Россия,Республика Коми, г.Сыктывкар, ул.Коммунистическая, д.24, оф.1');end
+begin new_dept('Kirov GazKIROV','Россия,Кировская область, г.Киров, ул.Ленина, д.100, оф.159');end
+=====================================================
+
+б) прием на работу нового сотрудника;
+create or replace procedure new_emp(
+p_e_name in emp.e_name%type,
+p_date_hire in emp.date_hire%type,
+p_salary in emp.salary%type,
+p_address in emp.address%type,
+p_d_name in dept.d_name%type,
+p_location in dept.location%type) is
+
+v_e_no emp.e_no%type;
+e_emp_name exception;
+e_emp_date_hire exception;
+e_emp_salary exception;
+v_v number(5);
+begin
+select count(*) into v_e_no from emp where e_name=p_e_name;
+if v_e_no>0 then raise e_emp_name;end if;
+
+select count(*) into v_e_no from emp;
+if v_e_no>0 then select max(e_no)+1 into v_e_no from emp;
+else v_e_no:=1;end if;
+
+if p_date_hire<'01/01/2006' or p_date_hire>sysdate then raise e_emp_date_hire;end if;
+
+if p_salary <0 then raise e_emp_salary;end if;
+
+select count(*) into v_v from dept where d_name= p_d_name;
+if v_v>0 then select d_no into v_v from dept where d_name= p_d_name;
+else select max(d_no)+1 into v_v from dept;
+insert into dept(d_no,d_name,location) values(v_v,p_d_name,p_location);end if;
+
+insert into emp(e_no,e_name,date_hire,salary,address,d_no)
+values (v_e_no,p_e_name,p_date_hire,p_salary,p_address,v_v);
+
+exception 
+when e_emp_name then raise_application_error(-20002,'Emp Exist');
+when e_emp_date_hire then raise_application_error(-20003,'Date not correct');
+when e_emp_salary then raise_application_error(-20004,'Salary < 0');
+end new_emp;
+=================================================
+begin new_emp('Болокан Николай','05/01/1991','-5','Россия, Республика Коми, с.Айкино, д.24,кв.1','Kirov GazKIROV','jhkjgh');end;  //Date not correct
+
+begin new_emp('Болокан Николай','05/01/2018','-5','Россия, Республика Коми, с.Айкино, д.24,кв.1','Kirov GazKIROV','jhkjgh');end;  //Salary < 0
+
+begin new_emp('Болокан Николай','05/01/2018','5000','Россия, Республика Коми, с.Айкино, д.24,кв.1','Kirov GazKIROV','jhkjgh');end;
+
+begin new_emp('Болокан Елена','07/05/2018','6000','Россия, Республика Коми, с.Айкино, д.24,кв.1','UhtaGaz','Россия, Республика Коми, г.Ухта, д.500,оф.80');end;
+==================================================
+
+в) увольнение с работы сотрудника по заданному номеру или по фамилии;
+create or replace procedure del_emp_no(p_e_no in emp.e_no%type) is
+v_v number(5);
+e_e_no exception;
+begin
+select count(*) into v_v from emp where e_no=p_e_no;
+if v_v=0 then raise e_e_no;end if;
+delete from emp where e_no=p_e_no;
+exception
+when e_e_no then raise_application_error(-20001,'emp not found');
+end del_emp_no;
+==============================================
+begin del_emp_no(2);end;
+==============================================
+create or replace procedure del_emp_name(p_e_name in emp.e_name%type) is
+v_v number(5);
+e_e_name exception;
+begin
+select count(*) into v_v from emp where e_name=p_e_name;
+if v_v=0 then raise e_e_name;end if;
+delete from emp where e_name=p_e_name;
+exception
+when e_e_name then raise_application_error(-20001,'e_name not found');
+end del_emp_name;
+==============================================
+begin del_emp_name('Болокан Елена');end;
+==============================================
+
+г) изменение зарплаты указанному сотруднику на заданную величину;
+create or replace procedure update_salary(
+p_e_name in emp.e_name%type,
+p_salary in emp.salary%type) is 
+v_v number(5);
+e_e_name exception;
+e_salary exception;
+begin 
+select count(*) into v_v from emp where e_name=p_e_name;
+if v_v=0 then raise e_e_name;end if;
+if p_salary<0 then raise e_salary; end if;
+update emp set salary=p_salary where e_name=p_e_name;
+exception
+when e_e_name then raise_application_error(-20001,'e_name not found');
+when e_salary then raise_application_error(-20001,'salary<0');
+end update_salary;
+==============================================
+begin update_salary('Болокdfdfd  dfwdf',-8);end;      //e_name not found
+begin update_salary('Болокан Елена',-8);end;         //salary<0
+begin update_salary('Болокан Елена',30000);end; 
+==============================================
+
+и) Реструктуризация фирмы - отделы с названием Sales перевести Dallas, остальные в New York.
+create or replace procedure dept_restruct is
+cursor c1 is select * from dept order by 1;
+begin
+for i in c1 loop
+if instr(i.d_name,'Sale')=0 then update dept set LOCATION='New York' where d_name=i.d_name;
+else update dept set LOCATION='Dallas' where d_name=i.d_name;end if;
+end loop;
+end dept_restruct;
+==============================================
+begin new_dept('KomiSale','USA');end;
+begin dept_restruct; end;
